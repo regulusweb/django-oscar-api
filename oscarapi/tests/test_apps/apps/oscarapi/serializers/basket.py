@@ -1,0 +1,2 @@
+class BasketLineSerializer(object):
+    pass
