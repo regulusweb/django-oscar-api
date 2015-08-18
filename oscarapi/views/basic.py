@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .mixin import PutIsPatchMixin
-from oscarapi import serializers, permissions
+from oscarapi import permissions
 from oscarapi.basket.operations import assign_basket_strategy
+from oscarapi.loading import get_api_class, get_api_classes
 
 
 Selector = get_class('partner.strategy', 'Selector')
@@ -36,22 +37,62 @@ User = auth.get_user_model()
 Country = get_model('address', 'Country')
 Partner = get_model('partner', 'Partner')
 
+# checkout serializers
+(CountrySerializer,
+ PriceSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.checkout',
+                      (
+                          'CountrySerializer',
+                          'PriceSerializer'
+                      ))
+
+# basket serializers
+(BasketSerializer,
+ LineAttributeSerializer,
+ StockRecordSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.basket',
+                      (
+                          'BasketSerializer',
+                          'LineAttributeSerializer',
+                          'StockRecordSerializer'
+                      ))
+
+# product serializers
+(ProductLinkSerializer,
+ ProductSerializer,
+ ProductAvailabilitySerializer,
+ OptionSerializer,
+ PartnerSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.product',
+                      (
+                          'ProductLinkSerializer',
+                          'ProductSerializer',
+                          'ProductAvailabilitySerializer',
+                          'OptionSerializer',
+                          'PartnerSerializer'
+                      ))
+
+UserSerializer = get_api_class('oscarapi.serializers.login', 'UserSerializer')
+
 
 # TODO: For all API's in this file, the permissions should be checked if they
 # are sensible.
 class CountryList(generics.ListAPIView):
-    serializer_class = serializers.CountrySerializer
+    serializer_class = CountrySerializer
     model = Country
 
 
 class CountryDetail(generics.RetrieveAPIView):
-    serializer_class = serializers.CountrySerializer
+    serializer_class = CountrySerializer
     model = Country
 
 
 class BasketList(generics.ListCreateAPIView):
     model = Basket
-    serializer_class = serializers.BasketSerializer
+    serializer_class = BasketSerializer
     permission_classes = (IsAdminUser,)
 
     def get_queryset(self):
@@ -62,7 +103,7 @@ class BasketList(generics.ListCreateAPIView):
 
 class BasketDetail(PutIsPatchMixin, generics.RetrieveUpdateDestroyAPIView):
     model = Basket
-    serializer_class = serializers.BasketSerializer
+    serializer_class = BasketSerializer
     permission_classes = (permissions.IsAdminUserOrRequestContainsBasket,)
     
     def get_object(self, queryset=None):
@@ -71,22 +112,22 @@ class BasketDetail(PutIsPatchMixin, generics.RetrieveUpdateDestroyAPIView):
 
 class LineAttributeList(generics.ListCreateAPIView):
     model = LineAttribute
-    serializer_class = serializers.LineAttributeSerializer
+    serializer_class = LineAttributeSerializer
 
 
 class LineAttributeDetail(PutIsPatchMixin, generics.RetrieveAPIView):
     model = LineAttribute
-    serializer_class = serializers.LineAttributeSerializer
+    serializer_class = LineAttributeSerializer
 
 
 class ProductList(generics.ListAPIView):
     model = Product
-    serializer_class = serializers.ProductLinkSerializer
+    serializer_class = ProductLinkSerializer
 
 
 class ProductDetail(generics.RetrieveAPIView):
     model = Product
-    serializer_class = serializers.ProductSerializer
+    serializer_class = ProductSerializer
 
 
 class ProductPrice(APIView):
@@ -95,19 +136,19 @@ class ProductPrice(APIView):
         product = Product.objects.get(id=pk)
         strategy = Selector().strategy(request=request, user=request.user)
         price = strategy.fetch_for_product(product).price
-        ser = serializers.PriceSerializer(price,
+        ser = PriceSerializer(price,
                                           context={'request': request})
         return Response(ser.data)
 
 
 class ProductAvailability(generics.RetrieveAPIView):
     model = Product
-    serializer_class = serializers.ProductAvailabilitySerializer
+    serializer_class = ProductAvailabilitySerializer
 
 
 class StockRecordList(generics.ListAPIView):
     model = StockRecord
-    serializer_class = serializers.StockRecordSerializer
+    serializer_class = StockRecordSerializer
 
     def get(self, request, pk=None, *args, **kwargs):
         if pk is not None:
@@ -118,36 +159,36 @@ class StockRecordList(generics.ListAPIView):
 
 class StockRecordDetail(generics.RetrieveAPIView):
     model = StockRecord
-    serializer_class = serializers.StockRecordSerializer
+    serializer_class = StockRecordSerializer
 
 
 class UserList(generics.ListAPIView):
     model = User
-    serializer_class = serializers.UserSerializer
+    serializer_class = UserSerializer
     permission_classes = (IsAdminUser,)
 
 
 class UserDetail(generics.RetrieveAPIView):
     model = User
-    serializer_class = serializers.UserSerializer
+    serializer_class = UserSerializer
     permission_classes = (IsAdminUser,)
 
 
 class OptionList(generics.ListAPIView):
     model = Option
-    serializer_class = serializers.OptionSerializer
+    serializer_class = OptionSerializer
 
 
 class OptionDetail(generics.RetrieveAPIView):
     model = Option
-    serializer_class = serializers.OptionSerializer
+    serializer_class = OptionSerializer
 
 
 class PartnerList(generics.ListAPIView):
     model = Partner
-    serializer_class = serializers.PartnerSerializer
+    serializer_class = PartnerSerializer
 
 
 class PartnerDetail(generics.RetrieveAPIView):
     model = Partner
-    serializer_class = serializers.PartnerSerializer
+    serializer_class = PartnerSerializer

@@ -1,14 +1,10 @@
 from rest_framework import status, views, response, generics
 
 from oscar.core.loading import get_model
-from oscarapi.serializers import (
-    OrderSerializer,
-    CheckoutSerializer,
-    OrderLineSerializer,
-    OrderLineAttributeSerializer
-)
+
 from oscarapi.permissions import IsOwner
 from oscarapi.views.utils import BasketPermissionMixin
+from oscarapi.loading import get_api_classes
 
 Order = get_model('order', 'Order')
 OrderLine = get_model('order', 'Line')
@@ -20,6 +16,19 @@ __all__ = (
     'OrderLineList', 'OrderLineDetail',
     'OrderLineAttributeDetail'
 )
+
+(OrderSerializer,
+ CheckoutSerializer,
+ OrderLineSerializer,
+ OrderLineAttributeSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.checkout',
+                      (
+                          'OrderSerializer',
+                          'CheckoutSerializer',
+                          'OrderLineSerializer',
+                          'OrderLineAttributeSerializer'
+                      ))
 
 
 class OrderList(generics.ListAPIView):

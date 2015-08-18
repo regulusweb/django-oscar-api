@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from oscarapi import serializers, permissions
+from oscarapi import permissions
 from oscarapi.basket.operations import (
     apply_offers,
     get_basket,
@@ -16,6 +16,7 @@ from oscarapi.basket.operations import (
 )
 from oscarapi.views.mixin import PutIsPatchMixin
 from oscarapi.views.utils import BasketPermissionMixin
+from oscarapi.loading import get_api_class, get_api_classes
 
 
 __all__ = ('BasketView', 'LineList', 'LineDetail', 'AddProductView',
@@ -24,6 +25,36 @@ __all__ = ('BasketView', 'LineList', 'LineDetail', 'AddProductView',
 Basket = get_model('basket', 'Basket')
 Line = get_model('basket', 'Line')
 Repository = get_class('shipping.repository', 'Repository')
+
+# basket serializers
+(BasketSerializer,
+ BasketLineSerializer,
+ LineSerializer,
+ LineAttributeSerializer,
+ VoucherAddSerializer,
+ VoucherSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.basket',
+                      (
+                          'BasketSerializer',
+                          'BasketLineSerializer',
+                          'LineSerializer',
+                          'LineAttributeSerializer',
+                          'VoucherAddSerializer',
+                          'VoucherSerializer'
+                      ))
+
+# product serializers
+(ProductSerializer,
+ AddProductSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.product',
+                      (
+                          'ProductSerializer',
+                          'AddProductSerializer'
+                      ))
+
+ShippingMethodSerializer = get_api_class('oscarapi.serializers.checkout', 'ShippingMethodSerializer')
 
 
 class BasketView(APIView):
@@ -34,7 +65,7 @@ class BasketView(APIView):
     GET:
     Retrieve your basket.
     """
-    serializer_class = serializers.BasketSerializer
+    serializer_class = BasketSerializer
 
     def get(self, request, format=None):
         basket = get_basket(request)
@@ -63,7 +94,7 @@ class AddProductView(APIView):
         }]
     }
     """
-    serializer_class = serializers.BasketSerializer
+    serializer_class = BasketSerializer
 
     def validate(self, basket, product, quantity, options):
         availability = basket.strategy.fetch_for_product(
@@ -85,7 +116,7 @@ class AddProductView(APIView):
         return True, None
 
     def post(self, request, format=None):
-        p_ser = serializers.AddProductSerializer(
+        p_ser = AddProductSerializer(
             data=request.DATA, context={'request': request})
         if p_ser.is_valid():
             basket = get_basket(request)
@@ -122,7 +153,7 @@ def add_voucher(request, format=None):
     Will return 200 and the voucher as json if succesful.
     If unsuccessful, will return 406 with the error.
     """
-    v_ser = serializers.VoucherAddSerializer(data=request.DATA,
+    v_ser = VoucherAddSerializer(data=request.DATA,
                                              context={'request': request})
     if v_ser.is_valid():
         basket = get_basket(request)
@@ -147,7 +178,7 @@ def add_voucher(request, format=None):
                     "Your basket does not qualify for a voucher discount")},
                 status=status.HTTP_406_NOT_ACCEPTABLE)
 
-        ser = serializers.VoucherSerializer(
+        ser = VoucherSerializer(
             voucher, context={'request': request})
         return Response(ser.data)
 
@@ -166,7 +197,7 @@ def shipping_methods(request, format=None):
     shiping_methods = Repository().get_shipping_methods(
         basket=request.basket, user=request.user,
         request=request)
-    ser = serializers.ShippingMethodSerializer(
+    ser = ShippingMethodSerializer(
         shiping_methods, many=True, context={'basket': basket})
     return Response(ser.data)
 
@@ -199,14 +230,14 @@ class LineList(BasketPermissionMixin, generics.ListCreateAPIView):
         }
     """
     queryset = Line.objects.all()
-    serializer_class = serializers.LineSerializer
+    serializer_class = LineSerializer
 
     def get(self, request, pk=None, format=None):
         if pk is not None:
             basket = self.check_basket_permission(request, pk)
             prepped_basket = assign_basket_strategy(basket, request)
             self.queryset = prepped_basket.all_lines()
-            self.serializer_class = serializers.BasketLineSerializer
+            self.serializer_class = BasketLineSerializer
         elif not request.user.is_staff:
             self.permission_denied(request)
 
@@ -232,7 +263,7 @@ class LineList(BasketPermissionMixin, generics.ListCreateAPIView):
 
 class LineDetail(PutIsPatchMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Line.objects.all()
-    serializer_class = serializers.LineSerializer
+    serializer_class = LineSerializer
     permission_classes = (permissions.IsAdminUserOrRequestContainsLine,)
 
     def get(self, request, pk=None, format=None):
@@ -243,7 +274,7 @@ class LineDetail(PutIsPatchMixin, generics.RetrieveUpdateDestroyAPIView):
         # computes the prices by using the strategy.
         if line.basket == basket:
             assign_basket_strategy(line.basket, request)
-            ser = serializers.BasketLineSerializer(instance=line, context={'request': request})
+            ser = BasketLineSerializer(instance=line, context={'request': request})
             return Response(ser.data) 
 
         return super(LineDetail, self).get(request, pk, format)

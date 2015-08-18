@@ -4,15 +4,24 @@ from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from oscarapi import serializers
 from oscarapi.utils import login_and_upgrade_session
 from oscarapi.basket import operations
 from oscar.core.loading import get_model
+from oscarapi.loading import get_api_classes
 
 
 __all__ = ('LoginView',)
 
 Basket = get_model('basket', 'Basket')
+
+(UserSerializer,
+ LoginSerializer
+ ) \
+    = get_api_classes('oscarapi.serializers.login',
+                      (
+                          'UserSerializer',
+                          'LoginSerializer'
+                      ))
 
 
 class LoginView(APIView):
@@ -47,7 +56,7 @@ class LoginView(APIView):
     def get(self, request, format=None):
         if settings.DEBUG:
             if request.user.is_authenticated():
-                ser = serializers.UserSerializer(request.user, many=False)
+                ser = UserSerializer(request.user, many=False)
                 return Response(ser.data)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -59,7 +68,7 @@ class LoginView(APIView):
         anonymous_basket.delete()
 
     def post(self, request, format=None):
-        ser = serializers.LoginSerializer(data=request.DATA)
+        ser = LoginSerializer(data=request.DATA)
         if ser.is_valid():
 
             anonymous_basket = operations.get_anonymous_basket(request)
