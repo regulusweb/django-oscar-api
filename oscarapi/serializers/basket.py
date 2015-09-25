@@ -149,15 +149,5 @@ class VoucherAddSerializer(serializers.Serializer):
 
         return attrs
 
-    def restore_object(self, attrs, instance=None):
-        if not instance:
-            code = attrs.get('vouchercode')
-            try:
-                instance = Voucher.objects.get(code=code)
-            except Voucher.DoesNotExist:
-                logger.error('Voucher not found %s' % code)
-        
-        return instance
-
     def create(self, validated_data):
         return Voucher.objects.create(**validated_data)
