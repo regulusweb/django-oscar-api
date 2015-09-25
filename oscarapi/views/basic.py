@@ -6,7 +6,6 @@ from oscar.core.loading import get_model, get_class
 from rest_framework import generics
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from .mixin import PutIsPatchMixin
 from oscarapi import permissions
@@ -83,61 +82,70 @@ UserSerializer = get_api_class('oscarapi.serializers.login', 'UserSerializer')
 class CountryList(generics.ListAPIView):
     serializer_class = CountrySerializer
     model = Country
+    queryset = Country.objects
 
 
 class CountryDetail(generics.RetrieveAPIView):
     serializer_class = CountrySerializer
     model = Country
+    queryset = Country.objects
 
 
 class BasketList(generics.ListCreateAPIView):
     model = Basket
     serializer_class = BasketSerializer
     permission_classes = (IsAdminUser,)
+    queryset = Basket.objects
 
     def get_queryset(self):
-        qs = super(BasketList, self).get_queryset()
         return itertools.imap(
             functools.partial(assign_basket_strategy, request=self.request), 
-            qs)
+            self.queryset.all())
+
 
 class BasketDetail(PutIsPatchMixin, generics.RetrieveUpdateDestroyAPIView):
     model = Basket
     serializer_class = BasketSerializer
     permission_classes = (permissions.IsAdminUserOrRequestContainsBasket,)
-    
-    def get_object(self, queryset=None):
-        basket = super(BasketDetail, self).get_object(queryset)
+    queryset = Basket.objects
+
+    def get_object(self):
+        basket = super(BasketDetail, self).get_object()
         return assign_basket_strategy(basket, self.request)
+
 
 class LineAttributeList(generics.ListCreateAPIView):
     model = LineAttribute
     serializer_class = LineAttributeSerializer
+    queryset = LineAttribute.objects
 
 
 class LineAttributeDetail(PutIsPatchMixin, generics.RetrieveAPIView):
     model = LineAttribute
     serializer_class = LineAttributeSerializer
+    queryset = LineAttribute.objects
 
 
 class ProductList(generics.ListAPIView):
     model = Product
     serializer_class = ProductLinkSerializer
+    queryset = Product.objects
 
 
 class ProductDetail(generics.RetrieveAPIView):
     model = Product
     serializer_class = ProductSerializer
+    queryset = Product.objects
 
 
-class ProductPrice(APIView):
+class ProductPrice(generics.RetrieveAPIView):
 
     def get(self, request, pk=None, format=None):
         product = Product.objects.get(id=pk)
         strategy = Selector().strategy(request=request, user=request.user)
-        price = strategy.fetch_for_product(product).price
-        ser = PriceSerializer(price,
-                                          context={'request': request})
+        ser = PriceSerializer(
+            strategy.fetch_for_product(product).price,
+            context={'request': request})
         return Response(ser.data)
 
 
@@ -145,14 +153,23 @@ class ProductAvailability(generics.RetrieveAPIView):
     model = Product
     serializer_class = ProductAvailabilitySerializer
 
+    def get(self, request, pk=None, format=None):
+        product = Product.objects.get(id=pk)
+        strategy = Selector().strategy(request=request, user=request.user)
+        ser = serializers.AvailabilitySerializer(
+            strategy.fetch_for_product(product).availability,
+            context={'request': request})
+        return Response(ser.data)
+
 
 class StockRecordList(generics.ListAPIView):
     model = StockRecord
     serializer_class = StockRecordSerializer
+    queryset = StockRecord.objects
 
     def get(self, request, pk=None, *args, **kwargs):
         if pk is not None:
-            self.queryset = self.get_queryset().filter(product__id=pk)
+            self.queryset = self.queryset.filter(product__id=pk)
 
         return super(StockRecordList, self).get(request, *args, **kwargs)
 
@@ -160,23 +177,27 @@ class StockRecordList(generics.ListAPIView):
 class StockRecordDetail(generics.RetrieveAPIView):
     model = StockRecord
     serializer_class = StockRecordSerializer
+    queryset = StockRecord.objects
 
 
 class UserList(generics.ListAPIView):
     model = User
     serializer_class = UserSerializer
+    queryset = User.objects
     permission_classes = (IsAdminUser,)
 
 
 class UserDetail(generics.RetrieveAPIView):
     model = User
     serializer_class = UserSerializer
+    queryset = User.objects
     permission_classes = (IsAdminUser,)
 
 
 class OptionList(generics.ListAPIView):
     model = Option
     serializer_class = OptionSerializer
+    queryset = Option.objects
 
 
 class OptionDetail(generics.RetrieveAPIView):
@@ -192,3 +213,4 @@ class PartnerList(generics.ListAPIView):
 class PartnerDetail(generics.RetrieveAPIView):
     model = Partner
     serializer_class = PartnerSerializer
+    queryset = Option.objects
