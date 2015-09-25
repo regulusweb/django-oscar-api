@@ -139,7 +139,8 @@ class OrderSerializer(OscarHyperlinkedModelSerializer):
     as the basket in the checkout process.
     """
     owner = serializers.HyperlinkedRelatedField(view_name='user-detail',
-                                                source='user')
+                                                source='user',
+                                                read_only=True)
     lines = serializers.HyperlinkedIdentityField(view_name='order-lines-list')
     shipping_address = InlineShippingAddressSerializer(
         many=False, required=False)
