@@ -61,7 +61,7 @@ Partner = get_model('partner', 'Partner')
 # product serializers
 (ProductLinkSerializer,
  ProductSerializer,
- ProductAvailabilitySerializer,
+ AvailabilitySerializer,
  OptionSerializer,
  PartnerSerializer
  ) \
@@ -69,7 +69,7 @@ Partner = get_model('partner', 'Partner')
                       (
                           'ProductLinkSerializer',
                           'ProductSerializer',
-                          'ProductAvailabilitySerializer',
+                          'AvailabilitySerializer',
                           'OptionSerializer',
                           'PartnerSerializer'
                       ))
@@ -151,7 +151,7 @@ class ProductPrice(generics.RetrieveAPIView):
 
 class ProductAvailability(generics.RetrieveAPIView):
     model = Product
-    serializer_class = ProductAvailabilitySerializer
+    serializer_class = AvailabilitySerializer
 
     def get(self, request, pk=None, format=None):
         product = Product.objects.get(id=pk)
