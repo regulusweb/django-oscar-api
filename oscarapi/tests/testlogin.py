@@ -1,9 +1,9 @@
 import json
 import time
+from importlib import import_module
 
 from django.conf import settings
 from django.contrib.sessions.models import Session
-from django.utils.importlib import import_module
 from django.utils import timezone
 
 from oscarapi.tests.utils import APITest
@@ -46,12 +46,12 @@ class LoginTest(APITest):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(parsed_response['username'], 'admin')
             self.assertEqual(parsed_response['id'], 1)
-    
+
     def test_failed_login_with_header(self):
         "Failed login should not upgrade to an authenticated session"
 
         response = self.post('api-login', username='nobody', password='somebody', session_id='koe')
-        
+
         self.assertEqual(response.status_code, 401)
         self.assertIn('Session-Id', response)
         self.assertEqual(response.get('Session-Id'), 'SID:ANON:testserver:koe', 'the session type should NOT be upgraded to AUTH')
@@ -79,7 +79,7 @@ class LoginTest(APITest):
             self.assertEqual(parsed_response['username'], 'nobody')
             self.assertEqual(parsed_response['id'], 2)
 
-        # using cookie sessions it is not possible to pass 1 session to another 
+        # using cookie sessions it is not possible to pass 1 session to another
         # user
         with self.settings(OSCARAPI_BLOCK_ADMIN_API_ACCESS=False, DEBUG=True, OSCARAPI_USER_FIELDS=('username', 'id')):
             response = self.post('api-login', username='admin', password='admin')
@@ -132,7 +132,7 @@ class LoginTest(APITest):
         with self.settings(DEBUG=True, SESSION_SAVE_EVERY_REQUEST=True):
             engine = import_module(settings.SESSION_ENGINE)
             session = engine.SessionStore()
-            
+
             # get a session running
             response = self.get('api-login', session_id='koe')
             parsed_session_uri = {
@@ -143,7 +143,7 @@ class LoginTest(APITest):
             session_id = session_id_from_parsed_session_uri(parsed_session_uri)
             self.assertTrue(session.exists(session_id))
             self.assertEqual(response.status_code, 204)
-            
+
             # delete the session
             response = self.delete('api-login', session_id='koe')
 
@@ -160,10 +160,10 @@ class LoginTest(APITest):
 
             session_id = self.client.session.session_key
             self.assertTrue(session.exists(session_id))
-            
+
             response = self.delete('api-login')
             self.assertFalse(session.exists(session_id))
-            
+
             response = self.get('api-login')
 
             self.assertEqual(response.status_code, 204)
@@ -219,4 +219,3 @@ class SessionTest(APITest):
             session['touched'] = 'writesomethingelse'
             session.save()
             self.assertEqual(session.session_key, 'session2')
-

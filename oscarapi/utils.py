@@ -1,8 +1,8 @@
 import hashlib
+from importlib import import_module
 
 from django.conf import settings
 from django.contrib import auth
-from django.utils.importlib import import_module
 from rest_framework import serializers, exceptions
 from oscar.core.loading import get_class
 import oscar.models.fields
