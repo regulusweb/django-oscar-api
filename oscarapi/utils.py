@@ -1,9 +1,15 @@
+import operator
 import hashlib
 from importlib import import_module
 
 from django.conf import settings
 from django.contrib import auth
 from rest_framework import serializers, exceptions
+from django.core.urlresolvers import NoReverseMatch
+
+from rest_framework import serializers, exceptions, relations
+from rest_framework.reverse import reverse
+
 from oscar.core.loading import get_class
 import oscar.models.fields
 
@@ -17,11 +23,17 @@ def overridable(name, default):
     return getattr(settings, name, default)
 
 
+def expand_field_mapping(extra_fields):
+    # This doesn't make a copy
+    field_mapping = serializers.ModelSerializer.serializer_field_mapping
+    field_mapping.update(extra_fields)
+    return field_mapping
+
+
 class OscarSerializer(object):
-    field_mapping = dict(
-        serializers.ModelSerializer.serializer_field_mapping, **{
-            oscar.models.fields.NullCharField: serializers.CharField
-        })
+    field_mapping = expand_field_mapping({
+        oscar.models.fields.NullCharField: serializers.CharField
+    })
 
     def __init__(self, *args, **kwargs):
         """
@@ -60,6 +72,64 @@ class OscarHyperlinkedModelSerializer(
     """
 
 
+class DrillDownHyperlinkedIdentityField(relations.HyperlinkedIdentityField):
+    def __init__(self, *args, **kwargs):
+        try:
+            self.extra_url_kwargs = kwargs.pop('extra_url_kwargs')
+        except KeyError:
+            msg = "DrillDownHyperlinkedIdentityField requires 'extra_url_args' argument"
+            raise ValueError(msg)
+
+        super(DrillDownHyperlinkedIdentityField, self).__init__(*args, **kwargs)
+
+    def get_extra_url_kwargs(self, obj):
+        return {
+            key: operator.attrgetter(path)(obj)
+                for key, path in self.extra_url_kwargs.items()
+        }
+
+    def get_url(self, obj, view_name, request, format):
+        """
+        Given an object, return the URL that hyperlinks to the object.
+
+        May raise a `NoReverseMatch` if the `view_name` and `lookup_field`
+        attributes are not configured to correctly match the URL conf.
+        """
+        lookup_field = getattr(obj, self.lookup_field, None)
+        kwargs = {self.lookup_field: lookup_field}
+        kwargs.update(self.get_extra_url_kwargs(obj))
+        # Handle unsaved object case
+        if lookup_field is None:
+            return None
+
+        try:
+            return reverse(view_name, kwargs=kwargs, request=request, format=format)
+        except NoReverseMatch:
+            pass
+
+        if self.pk_url_kwarg != 'pk':
+            # Only try pk lookup if it has been explicitly set.
+            # Otherwise, the default `lookup_field = 'pk'` has us covered.
+            kwargs = {self.pk_url_kwarg: obj.pk}
+            kwargs.update(self.get_extra_url_kwargs(obj))
+            try:
+                return reverse(view_name, kwargs=kwargs, request=request, format=format)
+            except NoReverseMatch:
+                pass
+
+        slug = getattr(obj, self.slug_field, None)
+        if slug:
+            # Only use slug lookup if a slug field exists on the model
+            kwargs = {self.slug_url_kwarg: slug}
+            kwargs.update(self.get_extra_url_kwargs(obj))
+            try:
+                return reverse(view_name, kwargs=kwargs, request=request, format=format)
+            except NoReverseMatch:
+                pass
+
+        raise NoReverseMatch()
+
+
 def get_domain(request):
     return request.get_host().split(':')[0]
 
@@ -95,9 +165,10 @@ def login_and_upgrade_session(request, user):
 
 
 def session_id_from_parsed_session_uri(parsed_session_uri):
-    session_id_base = "SID:%(type)s:%(realm)s:%(session_id)s" % (
+    session_id_base = u"SID:%(type)s:%(realm)s:%(session_id)s" % (
         parsed_session_uri)
-    return hashlib.sha1(session_id_base + settings.SECRET_KEY).hexdigest()
+    combined = session_id_base + settings.SECRET_KEY
+    return hashlib.sha1(combined.encode()).hexdigest()
 
 
 def get_session(session_id, raise_on_create=False):

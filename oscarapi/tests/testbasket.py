@@ -1,4 +1,6 @@
 import json
+import re
+
 from django.conf import settings
 from django.core.urlresolvers import reverse
 
@@ -28,7 +30,7 @@ class BasketTest(APITest):
         empty = Basket.objects.all()
         self.assertFalse(empty.exists(), "There should be no baskets yet.")
 
-        # anonymous        
+        # anonymous
         data = {}
 
         self.response = self.client.post(url, json.dumps(data), content_type='application/json')
@@ -48,6 +50,10 @@ class BasketTest(APITest):
         self.response = self.client.post(url, json.dumps(data), content_type='application/json')
         self.response.assertStatusEqual(201, "It should be possible for a basket to be created, for a specific user.")
         self.response.assertObjectIdEqual('owner', 1)
+
+        # When we created a basket, it should be listed in the basket-list view
+        self.response = self.client.get(url, content_type='application/json')
+        self.assertEqual(len(self.response.data), 1)
 
         data = {}
         self.response = self.client.post(url, json.dumps(data), content_type='application/json')
@@ -834,13 +840,20 @@ class BasketTest(APITest):
         # now let's try to cheat
         self.login('somebody', 'somebody')
         self.response = self.get(line0url)
-        self.response.assertStatusEqual(403)
+        self.response.assertStatusEqual(404)
         
-        # admin can cheat
+        # admin can cheat, but he uses a different url
+        line0id = re.search('(?P<id>\d+)/$', line0url).group('id')
+        admin_line0url = reverse('line-detail', args=(line0id,))
         with self.settings(OSCARAPI_BLOCK_ADMIN_API_ACCESS=False):
             self.login('admin', 'admin')
-            self.response = self.get(line0url)
+            self.response = self.get(admin_line0url)
             self.response.assertStatusEqual(200)
+
+        # nobody can not cheat like admin
+        self.login('somebody', 'somebody')
+        self.response = self.get(admin_line0url)
+        self.response.assertStatusEqual(403)
 
     def test_basket_line_permissions_header(self):
         "A user's Basket lines can not be viewed by another user in any way (except admins), even with header authetication"
@@ -861,12 +874,20 @@ class BasketTest(APITest):
         # now let's try to cheat
         self.hlogin('somebody', 'somebody', session_id='somebody')
         self.response = self.get(line0url, session_id='somebody', authenticated=True)
-        self.response.assertStatusEqual(403)
+        self.response.assertStatusEqual(404)
 
+        # admin can cheat, but he uses a different url
+        line0id = re.search('(?P<id>\d+)/$', line0url).group('id')
+        admin_line0url = reverse('line-detail', args=(line0id,))
         with self.settings(OSCARAPI_BLOCK_ADMIN_API_ACCESS=False):
             self.hlogin('admin', 'admin', session_id='admin')
-            self.response = self.get(line0url, session_id='admin', authenticated=True)
+            self.response = self.get(admin_line0url, session_id='admin', authenticated=True)
             self.response.assertStatusEqual(200)
+
+        # nobody can not cheat like admin
+        self.login('somebody', 'somebody')
+        self.response = self.get(admin_line0url)
+        self.response.assertStatusEqual(403)
 
     def test_frozen_basket_can_not_be_accessed(self):
         "Prove that frozen baskets can nolonger be accessed by the user."
@@ -937,3 +958,25 @@ class BasketTest(APITest):
             url="http://testserver/api/products/1/",
             quantity=25)
         self.response.assertStatusEqual(406)
+
+    def test_adjust_basket_line_quantity(self):
+        """Test if we can update the quantity of a line"""
+        self.response = self.post(
+            'api-basket-add-product',
+            url="http://testserver/api/products/1/",
+            quantity=5)
+        self.response.assertStatusEqual(200)
+
+        self.response = self.get('api-basket')
+        self.response.assertStatusEqual(200)
+
+        # Get the basket lines, and update the quantity to 4
+        self.response = self.get(self.response['lines'])
+        basket_line_url = self.response.data[0]['url']
+        self.response = self.put(basket_line_url, quantity=4)
+        self.response.assertStatusEqual(200)
+
+        # see if it's updated
+        self.response = self.get(basket_line_url)
+        self.response.assertStatusEqual(200)
+        self.response.assertValueEqual('quantity', 4)

@@ -17,19 +17,18 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = overridable('OSCARAPI_USER_FIELDS', (
-            'username', 'id', 'date_joined',))
+            User.USERNAME_FIELD, 'id', 'date_joined',))
 
 
 class LoginSerializer(serializers.Serializer):
-
     username = serializers.CharField(
-        max_length=field_length('username'), required=True)
+        max_length=field_length(User.USERNAME_FIELD), required=True)
     password = serializers.CharField(
         max_length=field_length('password'), required=True)
 
     def validate(self, attrs):
-        user = authenticate(username=attrs['username'],
-                            password=attrs['password'])
+        user = authenticate(
+            username=attrs['username'], password=attrs['password'])
         if user is None:
             raise serializers.ValidationError('invalid login')
         elif not user.is_active:
@@ -40,5 +39,6 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'Staff users can not log in via the rest api')
 
-        self.object = user
+        # set instance to the user so we can use this in the view
+        self.instance = user
         return attrs

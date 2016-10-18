@@ -19,6 +19,8 @@ from oscarapi.utils import (
     OscarModelSerializer,
     overridable
 )
+from oscarapi.serializers.fields import TaxIncludedDecimalField
+
 
 OrderPlacementMixin = get_class('checkout.mixins', 'OrderPlacementMixin')
 OrderTotalCalculator = get_class('checkout.calculators',
@@ -39,9 +41,11 @@ class PriceSerializer(serializers.Serializer):
         max_length=12, default=settings.OSCAR_DEFAULT_CURRENCY, required=False)
     excl_tax = serializers.DecimalField(
         decimal_places=2, max_digits=12, required=True)
-    incl_tax = serializers.DecimalField(
+    incl_tax = TaxIncludedDecimalField(
+        excl_tax_field='excl_tax',
         decimal_places=2, max_digits=12, required=False)
-    tax = serializers.DecimalField(
+    tax = TaxIncludedDecimalField(
+        excl_tax_value='0.00',
         decimal_places=2, max_digits=12, required=False)
 
 
@@ -100,12 +104,12 @@ class OrderLineSerializer(OscarHyperlinkedModelSerializer):
     url = serializers.HyperlinkedIdentityField(view_name='order-lines-detail')
     attributes = OrderLineAttributeSerializer(
         many=True, fields=('url', 'option', 'value'), required=False)
-    price_currency = serializers.DecimalField(decimal_places=2, max_digits=12,
-                                              source='order.currency')
-    price_excl_tax = serializers.DecimalField(decimal_places=2, max_digits=12,
-                                              source='line_price_excl_tax')
-    price_incl_tax = serializers.DecimalField(decimal_places=2, max_digits=12,
-                                              source='line_price_incl_tax')
+    price_currency = serializers.CharField(
+        source='order.currency', max_length=12)
+    price_excl_tax = serializers.DecimalField(
+        decimal_places=2, max_digits=12, source='line_price_excl_tax')
+    price_incl_tax = serializers.DecimalField(
+        decimal_places=2, max_digits=12, source='line_price_incl_tax')
     price_incl_tax_excl_discounts = serializers.DecimalField(
         decimal_places=2, max_digits=12,
         source='line_price_before_discounts_incl_tax')
@@ -119,8 +123,7 @@ class OrderLineSerializer(OscarHyperlinkedModelSerializer):
             'attributes', 'url', 'product', 'stockrecord', 'quantity',
             'price_currency', 'price_excl_tax', 'price_incl_tax',
             'price_incl_tax_excl_discounts', 'price_excl_tax_excl_discounts',
-            'order'
-        ])
+            'order'])
 
 
 class OrderOfferDiscountSerializer(OfferDiscountSerializer):
@@ -138,19 +141,20 @@ class OrderSerializer(OscarHyperlinkedModelSerializer):
     basket. That way the same kind of logic can be used to display the order
     as the basket in the checkout process.
     """
-    owner = serializers.HyperlinkedRelatedField(view_name='user-detail',
-                                                source='user',
-                                                read_only=True)
-    lines = serializers.HyperlinkedIdentityField(view_name='order-lines-list')
+    owner = serializers.HyperlinkedRelatedField(
+        view_name='user-detail', read_only=True, source='user')
+    lines = serializers.HyperlinkedIdentityField(
+        view_name='order-lines-list')
     shipping_address = InlineShippingAddressSerializer(
         many=False, required=False)
     billing_address = InlineBillingAddressSerializer(
         many=False, required=False)
+
     payment_url = serializers.SerializerMethodField()
 
     offer_discounts = serializers.SerializerMethodField()
     voucher_discounts = serializers.SerializerMethodField()
-    
+
     def get_offer_discounts(self, obj):
         qs = obj.basket_discounts.filter(offer_id__isnull=False)
         return OrderOfferDiscountSerializer(qs, many=True).data
@@ -158,7 +162,6 @@ class OrderSerializer(OscarHyperlinkedModelSerializer):
     def get_voucher_discounts(self, obj):
         qs = obj.basket_discounts.filter(voucher_id__isnull=False)
         return OrderVoucherOfferSerializer(qs, many=True).data
-    
 
     def get_payment_url(self, obj):
         try:
@@ -173,17 +176,19 @@ class OrderSerializer(OscarHyperlinkedModelSerializer):
     class Meta:
         model = Order
         fields = overridable('OSCARAPI_ORDER_FIELD', default=(
-            'number', 'basket', 'url',
+            'number', 'basket', 'url', 'lines',
             'owner', 'billing_address', 'currency', 'total_incl_tax',
             'total_excl_tax', 'shipping_incl_tax', 'shipping_excl_tax',
             'shipping_address', 'shipping_method', 'shipping_code', 'status',
             'guest_email', 'date_placed', 'payment_url', 'offer_discounts',
-            'voucher_discounts'))
+            'voucher_discounts')
+        )
 
 
 class CheckoutSerializer(serializers.Serializer, OrderPlacementMixin):
     basket = serializers.HyperlinkedRelatedField(
         view_name='basket-detail', queryset=Basket.objects)
+    guest_email = serializers.EmailField(allow_blank=True, required=False)
     total = serializers.DecimalField(
         decimal_places=2, max_digits=12, required=False)
     shipping_method_code = serializers.CharField(
@@ -197,13 +202,27 @@ class CheckoutSerializer(serializers.Serializer, OrderPlacementMixin):
 
     def validate(self, attrs):
         request = self.context['request']
- 
-        if request.user.is_anonymous() and not settings.OSCAR_ALLOW_ANON_CHECKOUT:
-            message = _('Anonymous checkout forbidden')
-            raise serializers.ValidationError(message)
+
+        if request.user.is_anonymous():
+            if not settings.OSCAR_ALLOW_ANON_CHECKOUT:
+                message = _('Anonymous checkout forbidden')
+                raise serializers.ValidationError(message)
+
+            if not attrs.get('guest_email'):
+                # Always require the guest email field if the user is anonymous
+                message = _('Guest email is required for anonymous checkouts')
+                raise serializers.ValidationError(message)
+        else:
+            if 'guest_email' in attrs:
+                # Don't store guest_email field if the user is authenticated
+                del attrs['guest_email']
 
         basket = attrs.get('basket')
         basket = assign_basket_strategy(basket, request)
+        if basket.num_items <= 0:
+            message = _('Cannot checkout with empty basket')
+            raise serializers.ValidationError(message)
+
         shipping_method = self._shipping_method(
             request, basket,
             attrs.get('shipping_method_code'),
@@ -231,7 +250,7 @@ class CheckoutSerializer(serializers.Serializer, OrderPlacementMixin):
                 ))
                 raise serializers.ValidationError(message)
 
-       # update attrs with validated data.
+        # update attrs with validated data.
         attrs['total'] = total
         attrs['shipping_method'] = shipping_method
         attrs['shipping_charge'] = shipping_charge
@@ -254,6 +273,7 @@ class CheckoutSerializer(serializers.Serializer, OrderPlacementMixin):
                 shipping_charge=validated_data.get('shipping_charge'),
                 billing_address=validated_data.get('billing_address'),
                 order_total=validated_data.get('total'),
+                guest_email=validated_data.get('guest_email') or ''
             )
         except ValueError as e:
             raise exceptions.NotAcceptable(e.message)

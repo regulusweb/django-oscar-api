@@ -49,9 +49,10 @@ class LoginView(APIView):
 
     GET (enabled in DEBUG mode only):
     Get the details of the logged in user.
-    If more details are needed, use the ``OSCARAPI_PRODUCT_FIELDS`` setting to change
+    If more details are needed, use the ``OSCARAPI_USER_FIELDS`` setting to change
     the fields the ``UserSerializer`` will render.
     """
+    serializer_class = LoginSerializer
 
     def get(self, request, format=None):
         if settings.DEBUG:
@@ -68,12 +69,12 @@ class LoginView(APIView):
         anonymous_basket.delete()
 
     def post(self, request, format=None):
-        ser = LoginSerializer(data=request.DATA)
+        ser = self.serializer_class(data=request.data)
         if ser.is_valid():
 
             anonymous_basket = operations.get_anonymous_basket(request)
 
-            user = ser.object
+            user = ser.instance
 
             # refuse to login logged in users, to avoid attaching sessions to
             # multiple users at the same time.

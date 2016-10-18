@@ -9,19 +9,21 @@ LoginView = get_api_class('oscarapi.views.login', 'LoginView')
 # basket views
 (BasketView,
  AddProductView,
- add_voucher,
+ AddVoucherView,
  shipping_methods,
  LineList,
- LineDetail
+ LineDetail,
+ BasketLineDetail
  ) \
     = get_api_classes('oscarapi.views.basket',
                       (
                           'BasketView',
                           'AddProductView',
-                          'add_voucher',
+                          'AddVoucherView',
                           'shipping_methods',
                           'LineList',
-                          'LineDetail'
+                          'LineDetail',
+                          'BasketLineDetail'
                       ))
 # basic views
 (LineAttributeList,
@@ -88,11 +90,12 @@ urlpatterns = patterns('',
     url(r'^login/$', LoginView.as_view(), name='api-login'),
     url(r'^basket/$', BasketView.as_view(), name='api-basket'),
     url(r'^basket/add-product/$', AddProductView.as_view(), name='api-basket-add-product'),
-    url(r'^basket/add-voucher/$', add_voucher, name='api-basket-add-voucher'),
+    url(r'^basket/add-voucher/$', AddVoucherView.as_view(), name='api-basket-add-voucher'),
     url(r'^basket/shipping-methods/$', shipping_methods, name='api-basket-shipping-methods'),
-    url(r'^baskets/(?P<pk>[0-9]+)/lines/$', LineList.as_view(), name='basket-lines-list'),
     url(r'^baskets/$', BasketList.as_view(), name='basket-list'),
     url(r'^baskets/(?P<pk>[0-9]+)/$', BasketDetail.as_view(), name='basket-detail'),
+    url(r'^baskets/(?P<pk>[0-9]+)/lines/$', LineList.as_view(), name='basket-lines-list'),
+    url(r'^baskets/(?P<basket_pk>[0-9]+)/lines/(?P<pk>[0-9]+)/$', BasketLineDetail.as_view(), name='basket-line-detail'),
     url(r'^lines/$', LineList.as_view(), name='line-list'),
     url(r'^lines/(?P<pk>[0-9]+)/$', LineDetail.as_view(), name='line-detail'),
     url(r'^lineattributes/$', LineAttributeList.as_view(), name='lineattribute-list'),

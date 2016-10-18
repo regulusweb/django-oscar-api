@@ -1,9 +1,9 @@
 import json
 import time
-from importlib import import_module
 
 from django.conf import settings
 from django.contrib.sessions.models import Session
+from importlib import import_module
 from django.utils import timezone
 
 from oscarapi.tests.utils import APITest
@@ -25,7 +25,7 @@ class LoginTest(APITest):
         # check authentication worked
         with self.settings(DEBUG=True, OSCARAPI_USER_FIELDS=('username', 'id')):
             response = self.get('api-login', session_id='koe', authenticated=True)
-            parsed_response = json.loads(response.content)
+            parsed_response = response.data
 
             self.assertEqual(parsed_response['username'], 'nobody')
             self.assertEqual(parsed_response['id'], 2)
@@ -41,7 +41,7 @@ class LoginTest(APITest):
 
             # check authentication worked
             response = self.get('api-login', session_id='koe', authenticated=True)
-            parsed_response = json.loads(response.content)
+            parsed_response = response.data
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(parsed_response['username'], 'admin')
@@ -74,7 +74,7 @@ class LoginTest(APITest):
         # check authentication worked
         with self.settings(DEBUG=True, OSCARAPI_USER_FIELDS=('username', 'id')):
             response = self.get('api-login')
-            parsed_response = json.loads(response.content)
+            parsed_response = response.data
 
             self.assertEqual(parsed_response['username'], 'nobody')
             self.assertEqual(parsed_response['id'], 2)
@@ -90,7 +90,7 @@ class LoginTest(APITest):
 
             # check we are still authenticated as nobody
             response = self.get('api-login')
-            parsed_response = json.loads(response.content)
+            parsed_response = response.data
 
             self.assertEqual(parsed_response['username'], 'nobody')
             self.assertEqual(parsed_response['id'], 2)

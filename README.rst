@@ -1,184 +1,117 @@
-==============
-Oscar REST API
-==============
+================
+Django Oscar API
+================
 
 This package provides a RESTful API for `django-oscar`_.
 
 .. _`django-oscar`: https://github.com/django-oscar/django-oscar
-.. _`django-oscar@googlegroups.com`: https://groups.google.com/forum/?fromgroups#!forum/django-oscar
-.. _`on the wiki`: https://github.com/django-oscar/django-oscar-api/wiki
-
-Continuous integration status:
 
 .. image:: https://travis-ci.org/django-oscar/django-oscar-api.svg?branch=master
     :target: https://travis-ci.org/django-oscar/django-oscar-api
 
-REST API Gateway & resource protection.
----------------------------------------
+.. image:: http://codecov.io/github/django-oscar/django-oscar-api/coverage.svg?branch=master 
+    :alt: Coverage
+    :target: http://codecov.io/github/django-oscar/django-oscar-api?branch=master
 
-Because we need the REST API to fascilitate the same usage patterns as
-a regular oscar HTML frontend, we need protection of resources on several
-levels.
+.. image:: https://readthedocs.org/projects/django-oscar-api/badge/
+   :alt: Documentation Status
+   :target: https://django-oscar-api.readthedocs.io/
 
-1. gateway level.
-   An API token is required to communicate with the REST API.
-   That means we can authorize client applications to make use of the
-   REST API. Examples of client applications are a website or a
-   mobile application.
-2. User level. Because we don't want resource protection to be the
-   responsibility of the client application, we need restrictions of resource
-   access on a user level. The user will use the REST API through an authorized
-   client application. A user must only be able to access his own resources and
-   it must be strictly enforced inside the REST API, that there is no way an
-   API client application can access resources of a different user than the one
-   identified to the REST API. Effectively an authorized client application can
-   only manipulate resources on a user level and not on an administrator level.
+.. image:: https://img.shields.io/pypi/v/django-oscar-api.svg
+   :alt: Latest PyPi release
+   :target: https://pypi.python.org/pypi/django-oscar-api
 
-
-Anonymous users
----------------
-
-Just like the oscar HTML frontend, some part of the functionality of oscar is
-available to anonymous users. That doesn't mean an anonymous user can not be
-identified. They are identified by their session, the same way as in a regular
-HTML frontend.
-
-There is an upgrade path for an anonymous user, to become an authenticated user,
-which opens up the functionality restricted to authenticated users, such as
-checkout, order history etc.
-
-A client application can upgrade a user by using the login API.
-The following actions will be performed when a user logs in:
-
-1. The user will be authenticated with the REST API. The next steps will only be
-   performed is login is succesful.
-2. The anonymous cart will be merged with the private cart associated with that
-   authenticated user.
-3. A new session will be started, this session identifies the authenticated user
-   for the duration of the session.
-4. The new, merged cart will be associated with this session.
-5. The anonymous session will be terminated.
-6. A response will be issued containing the new session id as a header (more on
-   this later).
-
-Session protocol
-----------------
-
-.. caution::
-    The session protocol should only be used when a *TRUSTED* application needs to
-    perform operations on behalf of a user. Never use the session protocol in any
-    application where the requests can be inspected by an attacker, such as a
-    mobile application. CSRF protection is NOT applied so requests CAN be forged
-    when using the session protocol. Regular cookie based sessions are still
-    fully functional and the entire REST API should work with this method of
-    authentication as well. When using cookie based session, csrf restrictions
-    are enforced as usual, so this is the preferred method of authentication
-    for any untrusted applications.
-
-.. important::
-    When using the session protocol, the client application is 100% responsible
-    for making sure session id's uniquely identify users. A session CAN and
-    WILL be attached to another user if that user logs in with a session id
-    allready in use by someone else.
-
-When using the session protocol for authentication, the REST API will not make
-use of cookies, which are usually used for transferring the session id between
-the client and the backend. Instead we will use the ``Session-Id`` header as
-specified in http://www.w3.org/TR/WD-session-id
-
-The w3c Session Identification URI specification proposes a format for a session
-identifier as follows::
-
-    SID:type:realm:identifier[-thread][:count]
-    Where the fields type, realm, identifier. thread and count are defined as follows:
-
-    type
-        Type of session identifier. This field allows other session identifier types to be defined. This draft specifies the identifier type "ANON".
-    realm
-        Specifies the realm within which linkage of the identifier is possible. Realms have the same format as DNS names.
-    identifier
-        Unstructured random integer specific to realm generated using a procedure with a negligible probability of collision. The identifier is encoded using base 64.
-    thread
-        Optional extension of identifier field used to differentiate concurrent uses of the same session identifier. The thread field is an integer encoded in hexadecimal.
-    count
-        Optional Hexadecimal encoded Integer containing a monotonically increasing counter value. A client should increment the count field after each operation.
-
-
-An example of a session identifier would be: ``SID:ANON:www.example.com:82d7ac3f-135c-4b12-a296-ff3c4701307d``.
-This identifier will be hashed to fit in 40 bytes to yield the final session key.
-
-The ``thread`` and ``count`` values, while allowed will be ignored and not
-included when hashing. When upgrading a user from anonymous to authenticated, a
-new session id will be generated, by replacing ``ANON`` in the original session
-id with ``AUTH`` and performing the hashing again, example: 
-
-``SID:AUTH:www.example.com:82d7ac3f-135c-4b12-a296-ff3c4701307d``.
-
-Every response of the REST API will also contain the ``Session-Id`` header.
-When a user is logged in, The response will contain a DIFFERENT Session-Id as
-the request, because ANON will be replaced with AUTH.
-
-Note that the generation of the ``identifier`` is a responsibility of the client
-application, as specified in the w3c specification. This means that it remains
-possible for a client application to resume sessions, as long as the identifier
-is kept.
-
-Client applications MUST ensure that session id's are unique, since it must
-uniquely identify a user, in the same way as a user name.
-
-Why?
-----
-
-The above measures ensure the following behaviour:
-
-1. Anonymous sessions can be resumed indefinately, preventing loss of shopping
-   basket content.
-2. Differentiating Session Identification URI's between anonymous users and
-   authenticated users prevents accidental retrieval of a private shopping basket
-   for a user that has logged out of the client application.
-3. Keeping the session identifier part of the Session Identification URI the same
-   for both anonymous and authenticated users, simplifies tracking and associating
-   REST API resources with client application resources.
-
-Final note
-----------
-
-Note that guessing the ``identifier`` of an authenticated or anonymous user and
-therefor hyjacking the session, is nomore difficult then guessing the session id
-stored in a cookie for a web application.
-
-Also note that the identifier, which is in the Session Identification URI, not
-used as the session id directly, which means session id's gathered from cookies
-can not be used to authenticate with the header Session-Id.
+.. image:: https://img.shields.io/badge/koe-15-brightgreen.svg
+   :alt: How many times koe is in the sourcecode
+   :target: https://github.com/django-oscar/django-oscar-api/blob/master/oscarapi/tests/testlogin.py#L23
 
 Usage
 =====
 
-To use the oscarapi application in an oscar ecommerce site, follow these
+To use the Oscar API application in an Oscar E-commerce site, follow these
 steps:
 
-1. Install the oscarapi python egg someway.
+1. Install the `django-oscar-api` package someway (``pip install django-oscar-api``).
 2. Add oscarapi to INSTALLED_APPS.
 3. Add the application's urls to your urlconf::
     
     from oscarapi.app import application as api
     urlpatterns = patterns('',
-        ... all the things you allready got
-        url(r'^oscarapi/', include(api.urls)),
+        # all the things you allready got
+        url(r'^api/', include(api.urls)),
     )
 
-Extending and overriding
-------------------------
+See the Documentation_ for more information.
 
-When needed, the functionality of the REST API can be overridden.
-The entry point for customization is ``oscarapi.app:Application``.
-In your own app, you can extend this class, and override some of the urls to
-direct them to your own views. You can subclass any of the views in oscarapi,
-or just write your own from scratch.
+.. _Documentation: https://django-oscar-api.readthedocs.io
 
-So to modify some of the functionality in oscarapi, do the following:
+Changelog
+=========
 
-1. Create a new django app with ``manage.py startapp``
-2. Create a file named app.py and in there extend oscarapi.app:Application.
-3. Direct some of the urls to your own (subclassed) views.
-4. Include your own app in INSTALLED_APPS and urls.py instead of oscarapi.
+1.0.8 (2016-10-04)
+------------------
+Fixes:
+  * #78 PUT on BasketLineSerializer was raising a 500 error due to incorrect LineAttributeSerializer definition
+
+1.0.7 (2016-08-26)
+------------------
+Fixes:
+  * #77 Use configured LoginSerializer instead of the hardcoded one (whyscream)
+  * Cleaned up urls.py to be compatible with django 1.10 (SalahAdDin)
+
+1.0.6 (2016-07-27)
+------------------
+Features:
+  * Make `add_voucher` a class based view so we can easily override the serializer
+
+Fixes:
+  * Oscar expects 'vouchercode' to be uppercase
+  * #74 Python 3 does not have `itertools.imap`, we use `six.moves.map` now (crgwbr)
+
+1.0.5 (2016-07-13)
+------------------
+
+Fixes:
+  * #70 Change process_response to have acorrect  API created basket cookie added to the response (albertojacini)
+
+1.0.4 (2016-04-04)
+------------------
+
+Features:
+  * #65 Add Docker configuration for testing convenience (crgwbr) 
+
+Fixes:
+  * #66 Raise a ValidationError (instead of a 500 server error)  when you try to checkout with an empty basket (crgwbr)
+  * #67 Fixes an AssertionError in the LineList view (missing queryset attribute)
+
+1.0.3 (2016-03-21)
+------------------
+
+Features:
+  * #35 Changes format of urls of basket lines (lines/1 -> basket/1/lines/1) 
+  * #63 Make AddProductSerializer easily overridable
+
+Fixes:
+  * #63 You can now update basketlines more easily with a PUT, updated documentation for this
+
+1.0.2 (2016-03-01)
+------------------
+Features:
+  * #58 Send a signal after placing an order so you don't need to customize the CheckoutView for custom post actions (bufke)
+
+Fixes:
+  * #60 ``is_quantity_allowed`` returned the quantity and not an error message (bootinge)
+  * Updated the docs with forgotten application definition (SamuelSilveira)
+
+1.0.1 (2016-01-29)
+------------------
+Fixes:
+  * #57 Make sure that we are really compatible with Django 1.9 (against Oscar Dev)
+  * Removed `django-compressor<2.0` as a dependency
+  * Fix for the `LoginSerializer` to make it work with custom username fields
+
+1.0.0 (2016-01-14)
+------------------
+Initial release.
+
+

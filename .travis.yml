@@ -10,16 +10,32 @@ cache:
 language: python
 
 python:
-    - '2.7'
+    - '2.7.11'
+    - '3.5'
 
 env:
-    matrix:
-        - DJANGO=Django==1.6.10
-        - DJANGO=Django==1.7.6
+    - DJANGO=Django==1.7.11 OSCAR=django-oscar==1.1.1
+    - DJANGO=Django==1.8.15 OSCAR=django-oscar==1.1.1
+    - DJANGO=Django==1.8.15 OSCAR=django-oscar==1.2.2
+    - DJANGO=Django==1.9.10 OSCAR=django-oscar==1.3
+matrix:
+    exclude:
+        - python: "3.5"
+          env: DJANGO=Django==1.7.11 OSCAR=django-oscar==1.1.1
 
+before_install:
+    - pip install codecov
+
+# the django-compressor and djangorestframework fixes are here 
+# while we still support Django 1.7
 install:
-    - if [[ $DJANGO == Django==1.6.10 ]]; then pip install south==1.0.2; fi
-    - pip install $DJANGO -e . --download-cache $HOME/.pip-cache
+    - pip install $OSCAR
+    - pip install $DJANGO -e .
+    - make install
+    - if [ ${DJANGO} == "Django==1.7.11" ]; then pip install 'django-compressor<2.0' && pip install 'djangorestframework<3.4';  fi
 
 script:
-    - make test
+    - make coverage
+
+after_success:
+  - codecov
