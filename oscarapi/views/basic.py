@@ -150,7 +150,7 @@ class ProductAvailability(generics.RetrieveAPIView):
     def get(self, request, pk=None, format=None):
         product = Product.objects.get(id=pk)
         strategy = Selector().strategy(request=request, user=request.user)
-        ser = serializers.AvailabilitySerializer(
+        ser = AvailabilitySerializer(
             strategy.fetch_for_product(product).availability,
             context={'request': request})
         return Response(ser.data)
