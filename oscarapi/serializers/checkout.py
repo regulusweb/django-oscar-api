@@ -96,6 +96,7 @@ class OrderLineAttributeSerializer(OscarHyperlinkedModelSerializer):
 
     class Meta:
         model = OrderLineAttribute
+        fields = '__all__'
 
 
 class OrderLineSerializer(OscarHyperlinkedModelSerializer):
