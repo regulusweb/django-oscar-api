@@ -1,10 +1,12 @@
-from django.conf.urls import patterns, url
+import django
+from django.conf.urls import url
 from rest_framework.urlpatterns import format_suffix_patterns
 
 from oscarapi.loading import get_api_classes, get_api_class
 
 
 LoginView = get_api_class('oscarapi.views.login', 'LoginView')
+api_root = get_api_class('oscarapi.views', 'api_root')
 
 # basket views
 (BasketView,
@@ -85,8 +87,8 @@ LoginView = get_api_class('oscarapi.views.login', 'LoginView')
                          'OrderLineAttributeDetail'
                      ))
 
-urlpatterns = patterns('',
-    url(r'^$', 'oscarapi.views.api_root', name='api-root'),
+urlpatterns = [
+    url(r'^$', api_root, name='api-root'),
     url(r'^login/$', LoginView.as_view(), name='api-login'),
     url(r'^basket/$', BasketView.as_view(), name='api-basket'),
     url(r'^basket/add-product/$', AddProductView.as_view(), name='api-basket-add-product'),
@@ -121,6 +123,11 @@ urlpatterns = patterns('',
     url(r'^countries/(?P<pk>[A-z]+)/$', CountryDetail.as_view(), name='country-detail'),
     url(r'^partners/$', PartnerList.as_view(), name='partner-list'),
     url(r'^partners/(?P<pk>[0-9]+)/$', PartnerDetail.as_view(), name='partner-detail')
-)
+]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
+
+if django.VERSION[:2] < (1, 8):
+    from django.conf.urls import patterns
+
+    urlpatterns = patterns('', *urlpatterns)
